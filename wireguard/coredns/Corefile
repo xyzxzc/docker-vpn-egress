@@ -1,0 +1,13 @@
+docker:53 {
+  errors
+  health
+  rewrite name suffix .docker .
+  forward . 127.0.0.11
+}
+
+.:53 {
+  errors
+  health
+  cache 3600
+  forward . 10.66.66.1
+}

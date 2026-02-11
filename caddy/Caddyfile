@@ -1,0 +1,3 @@
+example.com {
+  reverse_proxy wireguard:5678
+}

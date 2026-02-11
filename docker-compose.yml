@@ -1,0 +1,70 @@
+services:
+  wireguard:
+    image: linuxserver/wireguard
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      USE_COREDNS: "true"
+    volumes:
+      - ./wireguard:/config
+    # 
+    # Порты публикуются только на localhost.
+    # При full-tunnel VPN входящие соединения извне недоступны.
+    # Для внешнего доступа требуется Reverse Proxy (в примере Caddy).
+    #
+    ports:
+      - "127.0.0.1:5678:5678"  # n8n
+
+#  caddy:
+#    image: caddy
+#    restart: unless-stopped
+#    volumes:
+#      - ./caddy:/etc/caddy
+#      - caddy_data:/data
+#      - caddy_config:/config
+#    ports:
+#      - "80:80"
+#      - "443:443"
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+    volumes:
+      - db_storage:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  n8n:
+    image: n8nio/n8n
+    restart: unless-stopped
+    network_mode: "service:wireguard"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres.docker  # В WireGuard-неймспейсе Docker-сервисы резолвятся с суффиксом .docker
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - n8n_storage:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+      wireguard:
+        condition: service_started
+
+volumes:
+  caddy_data:
+  caddy_config:
+  db_storage:
+  n8n_storage:
